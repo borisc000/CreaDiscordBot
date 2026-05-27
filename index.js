@@ -57,3 +57,14 @@ client.on('interactionCreate', async interaction => {
 });
 
 client.login(process.env.DISCORD_TOKEN);
+
+// Mini servidor HTTP para que Render lo reconozca como Web Service (tier gratuito)
+const http = require('http');
+const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Bot de Discord activo');
+});
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`Servidor de salud escuchando en el puerto ${PORT}`);
+});
