@@ -59,27 +59,29 @@ async function processActionPrompt(instruccion, context, currentUser = '') {
     
     systemPrompt += `\n\nColumnas actuales de la base de datos: ${context.headers ? context.headers.join(', ') : 'Desconocidas'}
 
-Estado actual de las filas (cada fila tiene un '_rowIndex' que DEBES usar para referenciarla si quieres modificarla o eliminarla):
+Estado actual de las filas:
 ${JSON.stringify(context.tasks || context, null, 2)}
 
 El usuario te dará una instrucción. Debes devolver UNICAMENTE un arreglo de objetos JSON con las acciones a realizar, sin markdown ni explicaciones.
 Si el usuario pide guardar información que no encaja en las columnas actuales, DEBES usar primero la acción 'añadir_columna' para crearla y luego añadir o modificar la fila.
 
+IMPORTANTE: Para modificar o eliminar una fila, DEBES usar el valor de su columna "ID" enviándolo en la llave "id" dentro del JSON.
+
 Las acciones posibles son:
 1. Añadir fila: { "accion": "añadir_fila", "datos": { "ID": "...", "Tarea": "...", "Responsable": "..." } } (Usa las columnas actuales)
-2. Modificar fila: { "accion": "modificar_fila", "_rowIndex": numero, "datos": { "Estado": "Completado" } }
-3. Eliminar fila: { "accion": "eliminar_fila", "_rowIndex": numero }
+2. Modificar fila: { "accion": "modificar_fila", "id": "3", "datos": { "Estado": "Completado" } }
+3. Eliminar fila: { "accion": "eliminar_fila", "id": "5" }
 4. Añadir columna: { "accion": "añadir_columna", "nombre": "Prioridad" }
 
-Ejemplo de salida (el usuario pide agregar 'Prioridad Alta' a una tarea, pero la columna Prioridad no existe):
+Ejemplo de salida (el usuario pide agregar 'Prioridad Alta' a la tarea con ID 1, pero la columna Prioridad no existe):
 [
   { "accion": "añadir_columna", "nombre": "Prioridad" },
-  { "accion": "modificar_fila", "_rowIndex": 0, "datos": { "Prioridad": "Alta" } }
+  { "accion": "modificar_fila", "id": "1", "datos": { "Prioridad": "Alta" } }
 ]
 
-Ejemplo 2 (el usuario dice 'Borra la tarea 5 y agrega una de limpiar'):
+Ejemplo 2 (el usuario dice 'Borra la tarea con ID 5 y agrega una de limpiar'):
 [
-  { "accion": "eliminar_fila", "_rowIndex": 5 },
+  { "accion": "eliminar_fila", "id": "5" },
   { "accion": "añadir_fila", "datos": { "Tarea": "Limpiar base de datos", "Estado": "Pendiente" } }
 ]`;
 

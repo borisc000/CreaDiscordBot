@@ -108,8 +108,8 @@ client.on('messageCreate', async message => {
         const sheetData = await getAllTasks();
         const textoRespuesta = await askKimi(pregunta, sheetData, history, currentUser);
         
-        // Guardar en memoria: el mensaje del usuario y la respuesta del bot
-        memory.addMessage(message.channelId, 'user', pregunta);
+        // Guardar en memoria: inyectando el nombre del usuario
+        memory.addMessage(message.channelId, 'user', `[${currentUser}]: ${pregunta}`);
         memory.addMessage(message.channelId, 'assistant', textoRespuesta);
         
         let textoFinal = textoRespuesta;

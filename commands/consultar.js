@@ -30,8 +30,8 @@ module.exports = {
             
             const textoRespuesta = await askKimi(pregunta, sheetData, history, currentUser);
             
-            // Guardar en memoria
-            memory.addMessage(interaction.channelId, 'user', pregunta);
+            // Guardar en memoria inyectando el nombre para que la IA no confunda a los usuarios
+            memory.addMessage(interaction.channelId, 'user', `[${currentUser}]: ${pregunta}`);
             memory.addMessage(interaction.channelId, 'assistant', textoRespuesta);
             
             // Limitar a 4096 caracteres (límite de description de embed)

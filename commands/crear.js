@@ -60,11 +60,11 @@ module.exports = {
                     resultados.push(`✨ **Nueva Columna Creada:** \`${accion.nombre}\``);
                 }
                 else if (accion.accion === 'eliminar_fila') {
-                    if (accion._rowIndex !== undefined) {
-                        await deleteRow(accion._rowIndex);
-                        resultados.push(`🗑️ **Fila ${accion._rowIndex + 1} eliminada**`);
+                    if (accion.id !== undefined) {
+                        await deleteRow(accion.id);
+                        resultados.push(`🗑️ **Tarea con ID ${accion.id} eliminada**`);
                     } else {
-                        resultados.push(`❌ Se intentó eliminar una fila pero faltó el índice.`);
+                        resultados.push(`❌ Se intentó eliminar una tarea pero faltó el ID.`);
                     }
                 }
                 else if (accion.accion === 'añadir_fila') {
@@ -84,14 +84,14 @@ module.exports = {
                     resultados.push(`✅ **Fila añadida (ID auto: ${accion.datos['ID']})**\n${campos}`);
                 } 
                 else if (accion.accion === 'modificar_fila') {
-                    if (accion._rowIndex !== undefined) {
-                        await updateRow(accion._rowIndex, accion.datos);
+                    if (accion.id !== undefined) {
+                        await updateRow(accion.id, accion.datos);
                         registrarNotificacion(accion.datos);
                         
                         const cambios = Object.entries(accion.datos).map(([k, v]) => `> **${k}:** ${v}`).join('\n');
-                        resultados.push(`🔄 **Fila ${accion._rowIndex + 1} actualizada**\n${cambios}`);
+                        resultados.push(`🔄 **Tarea con ID ${accion.id} actualizada**\n${cambios}`);
                     } else {
-                        resultados.push(`❌ Se intentó modificar una fila pero no se encontró el índice.`);
+                        resultados.push(`❌ Se intentó modificar una tarea pero no se encontró el ID.`);
                     }
                 }
             }

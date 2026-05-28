@@ -91,21 +91,23 @@ async function appendRow(data) {
     }
 }
 
-async function updateRow(rowIndex, data) {
+async function updateRow(taskId, data) {
     try {
         await doc.loadInfo();
         const sheet = doc.sheetsByIndex[0];
         const rows = await sheet.getRows();
         
-        if (rowIndex >= 0 && rowIndex < rows.length) {
-            const row = rows[rowIndex];
+        // Buscar la fila por su columna ID
+        const row = rows.find(r => r.get('ID') === String(taskId));
+        
+        if (row) {
             const finalData = await normalizeData(data);
             for (const key of Object.keys(finalData)) {
                 row.set(key, finalData[key]);
             }
             await row.save();
         } else {
-            throw new Error(`La fila con índice ${rowIndex} no existe.`);
+            throw new Error(`La tarea con ID ${taskId} no existe.`);
         }
     } catch (error) {
         console.error('Error al actualizar fila:', error);
@@ -113,16 +115,19 @@ async function updateRow(rowIndex, data) {
     }
 }
 
-async function deleteRow(rowIndex) {
+async function deleteRow(taskId) {
     try {
         await doc.loadInfo();
         const sheet = doc.sheetsByIndex[0];
         const rows = await sheet.getRows();
         
-        if (rowIndex >= 0 && rowIndex < rows.length) {
-            await rows[rowIndex].delete();
+        // Buscar la fila por su columna ID
+        const row = rows.find(r => r.get('ID') === String(taskId));
+        
+        if (row) {
+            await row.delete();
         } else {
-            throw new Error(`La fila con índice ${rowIndex} no existe.`);
+            throw new Error(`La tarea con ID ${taskId} no existe.`);
         }
     } catch (error) {
         console.error('Error al eliminar fila:', error);
