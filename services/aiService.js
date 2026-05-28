@@ -7,13 +7,16 @@ const geminiClient = new OpenAI({
     baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
 });
 
-async function askKimi(prompt, context = "") {
+async function askKimi(prompt, context = {}) {
     let systemPrompt = "Eres un bot de discord que revisa tareas. Ayudas al equipo a organizarse de manera amigable.";
-    if (context) {
-        systemPrompt += "\n\nAquí está el estado actual de las tareas del proyecto:\n" + context + "\n\nUsa esta información para responder a la consulta del usuario de manera precisa.";
+    
+    // Ahora context contiene { headers, tasks }
+    if (context && context.headers && context.tasks) {
+        systemPrompt += "\n\nAquí están las columnas actuales del documento: " + context.headers.join(', ');
+        systemPrompt += "\nY aquí está el estado actual de las tareas del proyecto:\n" + JSON.stringify(context.tasks, null, 2);
+        systemPrompt += "\n\nUsa esta información para responder a la consulta del usuario de manera precisa. Si te preguntan por tareas completadas, búscalas. Tienes la visión total del proyecto.";
     }
 
-    // Orden de modelos a probar (Prioridad 1, Prioridad 2, etc.)
     const modelosAProbar = ["gemini-3.5-flash", "gemini-2.5-flash"];
 
     for (const modelo of modelosAProbar) {
@@ -30,7 +33,6 @@ async function askKimi(prompt, context = "") {
             return completion.choices[0].message.content;
         } catch (error) {
             console.error(`Fallo con ${modelo}:`, error.message);
-            // Si es el último modelo de la lista y también falla, lanzamos el error
             if (modelo === modelosAProbar[modelosAProbar.length - 1]) {
                 throw new Error("Todos los modelos de Gemini fallaron o llegaron a su límite.");
             }
@@ -38,19 +40,34 @@ async function askKimi(prompt, context = "") {
         }
     }
 }
+
 async function processActionPrompt(instruccion, context) {
-    const systemPrompt = `Eres un asistente que convierte instrucciones en acciones JSON para modificar una tabla.
-Aquí tienes el estado actual de la tabla (las filas tienen una propiedad _rowIndex que debes usar si quieres modificar esa fila):
-${JSON.stringify(context, null, 2)}
+    // context ahora contiene { headers, tasks }
+    const systemPrompt = `Eres un asistente que convierte instrucciones en acciones JSON para gestionar una base de datos dinámica.
+Columnas actuales de la base de datos: ${context.headers ? context.headers.join(', ') : 'Desconocidas'}
+
+Estado actual de las filas (cada fila tiene un '_rowIndex' que DEBES usar para referenciarla si quieres modificarla o eliminarla):
+${JSON.stringify(context.tasks || context, null, 2)}
 
 El usuario te dará una instrucción. Debes devolver UNICAMENTE un arreglo de objetos JSON con las acciones a realizar, sin markdown ni explicaciones.
-Las acciones posibles son:
-1. Añadir fila: { "accion": "añadir_fila", "datos": { "ID": "...", "Tarea": "...", "Responsable": "...", "Estado": "...", "Fecha": "..." } }
-2. Modificar fila: { "accion": "modificar_fila", "_rowIndex": numero, "datos": { "Estado": "Completado" } }
+Si el usuario pide guardar información que no encaja en las columnas actuales, DEBES usar primero la acción 'añadir_columna' para crearla y luego añadir o modificar la fila.
 
-Ejemplo de salida:
+Las acciones posibles son:
+1. Añadir fila: { "accion": "añadir_fila", "datos": { "ID": "...", "Tarea": "...", "Responsable": "..." } } (Usa las columnas actuales)
+2. Modificar fila: { "accion": "modificar_fila", "_rowIndex": numero, "datos": { "Estado": "Completado" } }
+3. Eliminar fila: { "accion": "eliminar_fila", "_rowIndex": numero }
+4. Añadir columna: { "accion": "añadir_columna", "nombre": "Prioridad" }
+
+Ejemplo de salida (el usuario pide agregar 'Prioridad Alta' a una tarea, pero la columna Prioridad no existe):
 [
-  { "accion": "añadir_fila", "datos": { "ID": "100", "Tarea": "Nuevo diseño", "Responsable": "Ana", "Estado": "Pendiente", "Fecha": "Hoy" } }
+  { "accion": "añadir_columna", "nombre": "Prioridad" },
+  { "accion": "modificar_fila", "_rowIndex": 0, "datos": { "Prioridad": "Alta" } }
+]
+
+Ejemplo 2 (el usuario dice 'Borra la tarea 5 y agrega una de limpiar'):
+[
+  { "accion": "eliminar_fila", "_rowIndex": 5 },
+  { "accion": "añadir_fila", "datos": { "Tarea": "Limpiar base de datos", "Estado": "Pendiente" } }
 ]`;
 
     const modelosAProbar = ["gemini-3.5-flash", "gemini-2.5-flash"];

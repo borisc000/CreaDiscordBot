@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { askKimi } = require('../services/aiService');
-const { getPendingTasks } = require('../services/sheetsService');
+const { getAllTasks } = require('../services/sheetsService');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -14,23 +14,13 @@ module.exports = {
     async execute(interaction) {
         const pregunta = interaction.options.getString('pregunta');
         
-        // Discord requiere que respondamos en menos de 3 segundos,
-        // por lo que usamos deferReply mientras esperamos a la IA.
         await interaction.deferReply();
 
         try {
-            // Obtenemos las tareas pendientes
-            const tasks = await getPendingTasks();
+            // Ahora obtenemos todo el contexto (headers y tasks)
+            const sheetData = await getAllTasks();
             
-            // Las formateamos en un bloque de texto para Gemini
-            let contextoTareas = "";
-            if (tasks.length > 0) {
-                contextoTareas = tasks.map(t => `- ID: ${t.id} | Tarea: ${t.tarea} | Responsable: ${t.responsable} | Estado: ${t.estado} | Fecha: ${t.fecha}`).join("\n");
-            } else {
-                contextoTareas = "Actualmente no hay tareas pendientes en el documento.";
-            }
-
-            const textoRespuesta = await askKimi(pregunta, contextoTareas);
+            const textoRespuesta = await askKimi(pregunta, sheetData);
             
             // Limitar a 4096 caracteres (límite de description de embed)
             let textoFinal = textoRespuesta;
@@ -40,7 +30,7 @@ module.exports = {
             
             const embed = new EmbedBuilder()
                 .setTitle('🤖 Respuesta de Gemini')
-                .setColor(0x00D166) // Verde éxito
+                .setColor(0x00D166)
                 .addFields({ name: '💬 Pregunta', value: pregunta, inline: false })
                 .setDescription(textoFinal)
                 .setFooter({ text: `Solicitado por ${interaction.user.username} • Gemini Flash` })
@@ -52,7 +42,7 @@ module.exports = {
             const errorEmbed = new EmbedBuilder()
                 .setTitle('❌ Error')
                 .setDescription('Hubo un problema al contactar con Gemini o se agotó la cuota. Verifica tu API Key.')
-                .setColor(0xED4245); // Rojo error
+                .setColor(0xED4245);
             await interaction.editReply({ embeds: [errorEmbed] });
         }
     },
