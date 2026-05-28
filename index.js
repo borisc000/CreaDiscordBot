@@ -58,10 +58,11 @@ client.on('interactionCreate', async interaction => {
 
 client.login(process.env.DISCORD_TOKEN);
 
-// ===== Respuesta a menciones (@GestorBot) =====
+// ===== Respuesta a menciones (@GestorBot) con MEMORIA =====
 const { askKimi } = require('./services/aiService');
 const { getAllTasks } = require('./services/sheetsService');
 const { EmbedBuilder } = require('discord.js');
+const memory = require('./services/memoryService');
 
 client.on('messageCreate', async message => {
     // Ignorar mensajes de bots (incluyéndose a sí mismo)
@@ -83,23 +84,41 @@ client.on('messageCreate', async message => {
         return message.reply({ embeds: [ayudaEmbed] });
     }
 
+    // Detectar reset de memoria
+    if (memory.isResetCommand(pregunta)) {
+        memory.clear(message.channelId);
+        const resetEmbed = new EmbedBuilder()
+            .setTitle('🧹 Memoria limpiada')
+            .setDescription('Listo, olvidé toda la conversación anterior. ¡Empecemos de cero!')
+            .setColor(0x5865F2);
+        return message.reply({ embeds: [resetEmbed] });
+    }
+
     try {
         // Mostrar que estamos "escribiendo..."
         await message.channel.sendTyping();
         
+        // Obtener historial de este canal
+        const history = memory.getHistory(message.channelId);
+        
         const sheetData = await getAllTasks();
-        const textoRespuesta = await askKimi(pregunta, sheetData);
+        const textoRespuesta = await askKimi(pregunta, sheetData, history);
+        
+        // Guardar en memoria: el mensaje del usuario y la respuesta del bot
+        memory.addMessage(message.channelId, 'user', pregunta);
+        memory.addMessage(message.channelId, 'assistant', textoRespuesta);
         
         let textoFinal = textoRespuesta;
         if (textoFinal.length > 4000) {
             textoFinal = textoFinal.substring(0, 4000) + '\n\n*... (respuesta truncada)*';
         }
         
+        const msgCount = memory.getMessageCount(message.channelId);
         const embed = new EmbedBuilder()
             .setTitle('🤖 Respuesta de Gemini')
             .setColor(0x00D166)
             .setDescription(textoFinal)
-            .setFooter({ text: `Preguntado por ${message.author.username} • Gemini Flash` })
+            .setFooter({ text: `${message.author.username} • 🧠 Memoria: ${msgCount}/20 msgs • Gemini Flash` })
             .setTimestamp();
         
         await message.reply({ embeds: [embed] });

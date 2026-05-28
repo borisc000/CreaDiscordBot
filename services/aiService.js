@@ -7,8 +7,8 @@ const geminiClient = new OpenAI({
     baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
 });
 
-async function askKimi(prompt, context = {}) {
-    let systemPrompt = "Eres un bot de discord que revisa tareas. Ayudas al equipo a organizarse de manera amigable.";
+async function askKimi(prompt, context = {}, history = []) {
+    let systemPrompt = "Eres un bot de discord que revisa tareas. Ayudas al equipo a organizarse de manera amigable. Tienes memoria de la conversación reciente, úsala para entender referencias como 'la primera', 'esa tarea', 'cámbiala', etc.";
     
     // Ahora context contiene { headers, tasks }
     if (context && context.headers && context.tasks) {
@@ -17,17 +17,21 @@ async function askKimi(prompt, context = {}) {
         systemPrompt += "\n\nUsa esta información para responder a la consulta del usuario de manera precisa. Si te preguntan por tareas completadas, búscalas. Tienes la visión total del proyecto.";
     }
 
+    // Construir el array de mensajes: system + historial previo + mensaje actual
+    const messages = [
+        { role: "system", content: systemPrompt },
+        ...history,  // Mensajes anteriores de la conversación
+        { role: "user", content: prompt }
+    ];
+
     const modelosAProbar = ["gemini-3.5-flash", "gemini-2.5-flash"];
 
     for (const modelo of modelosAProbar) {
         try {
-            console.log(`Intentando consultar a Gemini usando el modelo: ${modelo}...`);
+            console.log(`Intentando consultar a Gemini usando el modelo: ${modelo}... (historial: ${history.length} msgs)`);
             const completion = await geminiClient.chat.completions.create({
                 model: modelo,
-                messages: [
-                    { role: "system", content: systemPrompt },
-                    { role: "user", content: prompt }
-                ],
+                messages,
                 temperature: 0.3,
             });
             return completion.choices[0].message.content;

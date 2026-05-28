@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { askKimi } = require('../services/aiService');
 const { getAllTasks } = require('../services/sheetsService');
+const memory = require('../services/memoryService');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -17,10 +18,17 @@ module.exports = {
         await interaction.deferReply();
 
         try {
-            // Ahora obtenemos todo el contexto (headers y tasks)
+            // Obtener historial de este canal
+            const history = memory.getHistory(interaction.channelId);
+            
+            // Obtener todo el contexto dinámico del sheet
             const sheetData = await getAllTasks();
             
-            const textoRespuesta = await askKimi(pregunta, sheetData);
+            const textoRespuesta = await askKimi(pregunta, sheetData, history);
+            
+            // Guardar en memoria
+            memory.addMessage(interaction.channelId, 'user', pregunta);
+            memory.addMessage(interaction.channelId, 'assistant', textoRespuesta);
             
             // Limitar a 4096 caracteres (límite de description de embed)
             let textoFinal = textoRespuesta;
@@ -28,12 +36,13 @@ module.exports = {
                 textoFinal = textoFinal.substring(0, 4000) + '\n\n*... (respuesta truncada)*';
             }
             
+            const msgCount = memory.getMessageCount(interaction.channelId);
             const embed = new EmbedBuilder()
                 .setTitle('🤖 Respuesta de Gemini')
                 .setColor(0x00D166)
                 .addFields({ name: '💬 Pregunta', value: pregunta, inline: false })
                 .setDescription(textoFinal)
-                .setFooter({ text: `Solicitado por ${interaction.user.username} • Gemini Flash` })
+                .setFooter({ text: `${interaction.user.username} • 🧠 Memoria: ${msgCount}/20 msgs • Gemini Flash` })
                 .setTimestamp();
 
             await interaction.editReply({ embeds: [embed] });
