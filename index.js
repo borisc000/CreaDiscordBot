@@ -63,6 +63,7 @@ const { askKimi } = require('./services/aiService');
 const { getAllTasks } = require('./services/sheetsService');
 const { EmbedBuilder } = require('discord.js');
 const memory = require('./services/memoryService');
+const { getNameById } = require('./utils/teamMapping');
 
 client.on('messageCreate', async message => {
     // Ignorar mensajes de bots (incluyéndose a sí mismo)
@@ -98,11 +99,14 @@ client.on('messageCreate', async message => {
         // Mostrar que estamos "escribiendo..."
         await message.channel.sendTyping();
         
+        // Resolver identidad
+        const currentUser = getNameById(message.author.id) || message.author.username;
+        
         // Obtener historial de este canal
         const history = memory.getHistory(message.channelId);
         
         const sheetData = await getAllTasks();
-        const textoRespuesta = await askKimi(pregunta, sheetData, history);
+        const textoRespuesta = await askKimi(pregunta, sheetData, history, currentUser);
         
         // Guardar en memoria: el mensaje del usuario y la respuesta del bot
         memory.addMessage(message.channelId, 'user', pregunta);

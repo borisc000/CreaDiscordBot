@@ -2,6 +2,7 @@ const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { askKimi } = require('../services/aiService');
 const { getAllTasks } = require('../services/sheetsService');
 const memory = require('../services/memoryService');
+const { getNameById } = require('../utils/teamMapping');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -18,13 +19,16 @@ module.exports = {
         await interaction.deferReply();
 
         try {
+            // Resolver identidad
+            const currentUser = getNameById(interaction.user.id) || interaction.user.username;
+            
             // Obtener historial de este canal
             const history = memory.getHistory(interaction.channelId);
             
             // Obtener todo el contexto dinámico del sheet
             const sheetData = await getAllTasks();
             
-            const textoRespuesta = await askKimi(pregunta, sheetData, history);
+            const textoRespuesta = await askKimi(pregunta, sheetData, history, currentUser);
             
             // Guardar en memoria
             memory.addMessage(interaction.channelId, 'user', pregunta);

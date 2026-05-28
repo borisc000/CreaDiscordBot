@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { getAllTasks, appendRow, updateRow, deleteRow, addColumn, getNextId } = require('../services/sheetsService');
 const { processActionPrompt } = require('../services/aiService');
+const { getNameById, getIdsByName } = require('../utils/teamMapping');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -17,11 +18,14 @@ module.exports = {
         const instruccion = interaction.options.getString('instruccion');
 
         try {
-            // 1. Obtener el estado actual completo (ahora incluye headers y tasks)
+            // Resolver identidad
+            const currentUser = getNameById(interaction.user.id) || interaction.user.username;
+
+            // 1. Obtener el estado actual completo
             const sheetData = await getAllTasks();
 
             // 2. Enviar a Gemini para convertir instrucción a JSON dinámico
-            const acciones = await processActionPrompt(instruccion, sheetData);
+            const acciones = await processActionPrompt(instruccion, sheetData, currentUser);
 
             if (!acciones || acciones.length === 0) {
                 const noEntendioEmbed = new EmbedBuilder()
@@ -33,6 +37,21 @@ module.exports = {
             }
 
             let resultados = [];
+            let usuariosANotificar = []; // Guardaremos { nombre, tareaStr }
+
+            // Función auxiliar para registrar a quién notificar
+            const registrarNotificacion = (datos) => {
+                const respKey = Object.keys(datos).find(k => k.toLowerCase() === 'responsable');
+                const tareaKey = Object.keys(datos).find(k => k.toLowerCase() === 'tarea');
+                if (respKey && datos[respKey] && datos[respKey].trim() !== '') {
+                    const responsable = datos[respKey];
+                    // Evitar notificar "No asignado" o similar
+                    if (responsable.toLowerCase() !== 'no asignado') {
+                        const tareaName = (tareaKey && datos[tareaKey]) ? datos[tareaKey] : 'una tarea actualizada';
+                        usuariosANotificar.push({ nombre: responsable, tarea: tareaName });
+                    }
+                }
+            };
 
             // 3. Ejecutar las acciones en orden
             for (const accion of acciones) {
@@ -56,6 +75,8 @@ module.exports = {
                         accion.datos['ID'] = String(nextId);
                     }
                     await appendRow(accion.datos);
+                    registrarNotificacion(accion.datos);
+                    
                     // Formatear los datos insertados dinámicamente
                     const campos = Object.entries(accion.datos)
                         .map(([k, v]) => `> **${k}:** ${v}`)
@@ -65,6 +86,8 @@ module.exports = {
                 else if (accion.accion === 'modificar_fila') {
                     if (accion._rowIndex !== undefined) {
                         await updateRow(accion._rowIndex, accion.datos);
+                        registrarNotificacion(accion.datos);
+                        
                         const cambios = Object.entries(accion.datos).map(([k, v]) => `> **${k}:** ${v}`).join('\n');
                         resultados.push(`🔄 **Fila ${accion._rowIndex + 1} actualizada**\n${cambios}`);
                     } else {
@@ -73,12 +96,40 @@ module.exports = {
                 }
             }
 
+            // 4. Enviar notificaciones por DM a los responsables
+            let dmLogs = [];
+            for (const notif of usuariosANotificar) {
+                const targetIds = getIdsByName(notif.nombre);
+                for (const discordId of targetIds) {
+                    try {
+                        const user = await interaction.client.users.fetch(discordId);
+                        if (user) {
+                            const dmEmbed = new EmbedBuilder()
+                                .setTitle('📌 Nueva Asignación de Tarea')
+                                .setDescription(`¡Hola! **${currentUser}** te ha asignado o actualizado una tarea en el proyecto.`)
+                                .addFields({ name: 'Tarea', value: notif.tarea })
+                                .setColor(0x5865F2);
+                            await user.send({ embeds: [dmEmbed] });
+                            dmLogs.push(`📩 DM enviado a ${notif.nombre}`);
+                        }
+                    } catch (err) {
+                        console.error(`No se pudo enviar DM al usuario con ID ${discordId}:`, err.message);
+                    }
+                }
+            }
+            
+            // Eliminar duplicados de los logs de DM (por si notificamos a múltiples cuentas de la misma persona)
+            dmLogs = [...new Set(dmLogs)];
+            if (dmLogs.length > 0) {
+                resultados.push(dmLogs.join('\n'));
+            }
+
             const embed = new EmbedBuilder()
                 .setTitle('📝 Base de Datos Actualizada')
                 .setColor(0x00D166)
                 .addFields({ name: '💬 Instrucción', value: instruccion, inline: false })
                 .setDescription(resultados.join('\n\n'))
-                .setFooter({ text: `Gestor Automático • Potenciado por Gemini` })
+                .setFooter({ text: `Por ${currentUser} • Gestor Automático` })
                 .setTimestamp();
 
             await interaction.editReply({ embeds: [embed] });

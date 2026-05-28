@@ -7,8 +7,12 @@ const geminiClient = new OpenAI({
     baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
 });
 
-async function askKimi(prompt, context = {}, history = []) {
+async function askKimi(prompt, context = {}, history = [], currentUser = '') {
     let systemPrompt = "Eres un bot de discord que revisa tareas. Ayudas al equipo a organizarse de manera amigable. Tienes memoria de la conversación reciente, úsala para entender referencias como 'la primera', 'esa tarea', 'cámbiala', etc.";
+    
+    if (currentUser) {
+        systemPrompt += `\n\nEl usuario con el que estás hablando AHORA MISMO se llama ${currentUser}. Usa esta información para saber a quién se refiere cuando dice "yo", "mis tareas", "asígnamela a mi", etc.`;
+    }
     
     // Ahora context contiene { headers, tasks }
     if (context && context.headers && context.tasks) {
@@ -45,10 +49,15 @@ async function askKimi(prompt, context = {}, history = []) {
     }
 }
 
-async function processActionPrompt(instruccion, context) {
+async function processActionPrompt(instruccion, context, currentUser = '') {
     // context ahora contiene { headers, tasks }
-    const systemPrompt = `Eres un asistente que convierte instrucciones en acciones JSON para gestionar una base de datos dinámica.
-Columnas actuales de la base de datos: ${context.headers ? context.headers.join(', ') : 'Desconocidas'}
+    let systemPrompt = `Eres un asistente que convierte instrucciones en acciones JSON para gestionar una base de datos dinámica.`;
+    
+    if (currentUser) {
+        systemPrompt += `\nEl usuario que está dando la instrucción se llama ${currentUser}. Si pide que le asignes algo a "mi" o "yo", usa el nombre ${currentUser} en la columna Responsable.`;
+    }
+    
+    systemPrompt += `\n\nColumnas actuales de la base de datos: ${context.headers ? context.headers.join(', ') : 'Desconocidas'}
 
 Estado actual de las filas (cada fila tiene un '_rowIndex' que DEBES usar para referenciarla si quieres modificarla o eliminarla):
 ${JSON.stringify(context.tasks || context, null, 2)}
