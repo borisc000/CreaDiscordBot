@@ -58,6 +58,61 @@ client.on('interactionCreate', async interaction => {
 
 client.login(process.env.DISCORD_TOKEN);
 
+// ===== Respuesta a menciones (@GestorBot) =====
+const { askKimi } = require('./services/aiService');
+const { getAllTasks } = require('./services/sheetsService');
+const { EmbedBuilder } = require('discord.js');
+
+client.on('messageCreate', async message => {
+    // Ignorar mensajes de bots (incluyéndose a sí mismo)
+    if (message.author.bot) return;
+    
+    // Solo responder si mencionan al bot
+    if (!message.mentions.has(client.user)) return;
+    
+    // Extraer el texto limpio (quitar la mención del bot)
+    const pregunta = message.content
+        .replace(/<@!?\d+>/g, '')  // Quitar todas las menciones
+        .trim();
+    
+    if (!pregunta) {
+        const ayudaEmbed = new EmbedBuilder()
+            .setTitle('👋 ¡Hola! Soy GestorBot')
+            .setDescription('Puedes hacerme preguntas directamente mencionándome.\n\n**Ejemplo:** `@GestorBot ¿cómo van las tareas de Pedro?`\n\nO usa `/ayuda` para ver todos mis comandos.')
+            .setColor(0x5865F2);
+        return message.reply({ embeds: [ayudaEmbed] });
+    }
+
+    try {
+        // Mostrar que estamos "escribiendo..."
+        await message.channel.sendTyping();
+        
+        const sheetData = await getAllTasks();
+        const textoRespuesta = await askKimi(pregunta, sheetData);
+        
+        let textoFinal = textoRespuesta;
+        if (textoFinal.length > 4000) {
+            textoFinal = textoFinal.substring(0, 4000) + '\n\n*... (respuesta truncada)*';
+        }
+        
+        const embed = new EmbedBuilder()
+            .setTitle('🤖 Respuesta de Gemini')
+            .setColor(0x00D166)
+            .setDescription(textoFinal)
+            .setFooter({ text: `Preguntado por ${message.author.username} • Gemini Flash` })
+            .setTimestamp();
+        
+        await message.reply({ embeds: [embed] });
+    } catch (error) {
+        console.error('Error en mención:', error);
+        const errorEmbed = new EmbedBuilder()
+            .setTitle('❌ Error')
+            .setDescription('Hubo un problema al procesar tu mensaje. Intenta de nuevo.')
+            .setColor(0xED4245);
+        await message.reply({ embeds: [errorEmbed] });
+    }
+});
+
 // Mini servidor HTTP para que Render lo reconozca como Web Service (tier gratuito)
 const http = require('http');
 const server = http.createServer((req, res) => {

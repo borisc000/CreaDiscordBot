@@ -147,12 +147,38 @@ async function addColumn(columnName) {
     }
 }
 
-// Ya no exportamos getPendingTasks porque ahora consultar usa getAllTasks dinámico
+async function getNextId() {
+    try {
+        await doc.loadInfo();
+        const sheet = doc.sheetsByIndex[0];
+        await sheet.loadHeaderRow();
+        
+        // Si no existe columna ID, devolvemos 1
+        if (!sheet.headerValues.some(h => h.toLowerCase() === 'id')) {
+            return 1;
+        }
+        
+        const rows = await sheet.getRows();
+        let maxId = 0;
+        for (const row of rows) {
+            const val = parseInt(row.get('ID'));
+            if (!isNaN(val) && val > maxId) {
+                maxId = val;
+            }
+        }
+        return maxId + 1;
+    } catch (error) {
+        console.error('Error al calcular siguiente ID:', error);
+        return 1;
+    }
+}
+
 module.exports = {
     getHeaders,
     getAllTasks,
     appendRow,
     updateRow,
     deleteRow,
-    addColumn
+    addColumn,
+    getNextId
 };

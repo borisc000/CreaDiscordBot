@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { getAllTasks, appendRow, updateRow, deleteRow, addColumn } = require('../services/sheetsService');
+const { getAllTasks, appendRow, updateRow, deleteRow, addColumn, getNextId } = require('../services/sheetsService');
 const { processActionPrompt } = require('../services/aiService');
 
 module.exports = {
@@ -49,12 +49,18 @@ module.exports = {
                     }
                 }
                 else if (accion.accion === 'añadir_fila') {
+                    // Auto-ID: si no tiene ID o está vacío, asignar el siguiente automáticamente
+                    const idKey = Object.keys(accion.datos).find(k => k.toLowerCase() === 'id');
+                    if (!idKey || !accion.datos[idKey] || accion.datos[idKey] === '...' || accion.datos[idKey] === 'AUTO') {
+                        const nextId = await getNextId();
+                        accion.datos['ID'] = String(nextId);
+                    }
                     await appendRow(accion.datos);
                     // Formatear los datos insertados dinámicamente
                     const campos = Object.entries(accion.datos)
                         .map(([k, v]) => `> **${k}:** ${v}`)
                         .join('\n');
-                    resultados.push(`✅ **Fila añadida**\n${campos}`);
+                    resultados.push(`✅ **Fila añadida (ID auto: ${accion.datos['ID']})**\n${campos}`);
                 } 
                 else if (accion.accion === 'modificar_fila') {
                     if (accion._rowIndex !== undefined) {
