@@ -30,8 +30,13 @@ for (const file of commandFiles) {
     }
 }
 
+const cronService = require('./services/cronService');
+
 client.once('ready', () => {
     console.log(`¡Bot iniciado exitosamente como ${client.user.tag}!`);
+    
+    // Iniciar tareas programadas
+    cronService.initCrons(client);
 });
 
 const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
