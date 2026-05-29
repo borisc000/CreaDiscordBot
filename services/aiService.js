@@ -14,8 +14,8 @@ async function askKimi(prompt, context = {}, history = [], currentUser = '') {
         systemPrompt += `\n\nEl usuario con el que estás hablando AHORA MISMO se llama ${currentUser}. Usa esta información para saber a quién se refiere cuando dice "yo", "mis tareas", "asígnamela a mi", etc.`;
     }
     
-    // Ahora context contiene { headers, tasks }
     if (context && context.headers && context.tasks) {
+        systemPrompt += "\n\nIMPORTANTE: En la base de datos algunos nombres pueden estar escritos con apellidos (ej. 'Pedro Salazar') o apodos. Tú DEBES asumir siempre que 'Pedro' y 'Pedro Salazar' son EXACTAMENTE la misma persona. Lo mismo para 'Boris'. Une sus tareas al contarlas o reportarlas.";
         systemPrompt += "\n\nAquí están las columnas actuales del documento: " + context.headers.join(', ');
         systemPrompt += "\nY aquí está el estado actual de las tareas del proyecto:\n" + JSON.stringify(context.tasks, null, 2);
         systemPrompt += "\n\nUsa esta información para responder a la consulta del usuario de manera precisa. Si te preguntan por tareas completadas, búscalas. Tienes la visión total del proyecto.";
@@ -56,6 +56,8 @@ async function processActionPrompt(instruccion, context, currentUser = '') {
     if (currentUser) {
         systemPrompt += `\nEl usuario que está dando la instrucción se llama ${currentUser}. Si pide que le asignes algo a "mi" o "yo", usa el nombre ${currentUser} en la columna Responsable.`;
     }
+    
+    systemPrompt += `\nIMPORTANTE: Cuando escribas nombres de personas (especialmente en la columna Responsable), DEBES estandarizarlos a los nombres principales del equipo: "Boris" o "Pedro". NUNCA uses apellidos (ej. "Pedro Salazar" debe ser "Pedro") ni apodos.`;
     
     systemPrompt += `\n\nColumnas actuales de la base de datos: ${context.headers ? context.headers.join(', ') : 'Desconocidas'}
 
