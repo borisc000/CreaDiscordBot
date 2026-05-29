@@ -12,23 +12,60 @@ const serviceAccountAuth = new JWT({
 
 const doc = new GoogleSpreadsheet(process.env.SPREADSHEET_ID, serviceAccountAuth);
 
+// --- SISTEMA DE CACHÉ ---
+let isDocLoaded = false;
+let cacheData = null;       // Guardará { headers, tasks }
+let cacheTime = 0;          // Timestamp de la última lectura
+const CACHE_TTL = 60 * 1000; // 1 minuto en milisegundos
+
+/**
+ * Carga los metadatos del documento UNA sola vez por ciclo de vida del bot.
+ * Esto ahorra una petición HTTP en cada acción.
+ */
+async function getSheet() {
+    if (!isDocLoaded) {
+        await doc.loadInfo();
+        isDocLoaded = true;
+    }
+    return doc.sheetsByIndex[0];
+}
+
+/**
+ * Invalida el caché de datos. Se debe llamar después de cualquier modificación (crear, editar, borrar).
+ */
+function invalidateCache() {
+    cacheData = null;
+    cacheTime = 0;
+}
+// ------------------------
+
 async function getHeaders() {
-    await doc.loadInfo();
-    const sheet = doc.sheetsByIndex[0];
+    const sheet = await getSheet();
     await sheet.loadHeaderRow();
     return sheet.headerValues;
 }
 
 async function getAllTasks() {
     try {
-        await doc.loadInfo();
-        const sheet = doc.sheetsByIndex[0];
+        // 1. Verificar si tenemos caché válido
+        const now = Date.now();
+        if (cacheData && (now - cacheTime < CACHE_TTL)) {
+            console.log('[Caché] Sirviendo datos de Sheets desde memoria...');
+            return cacheData;
+        }
+
+        console.log('[Sheets API] Descargando datos frescos...');
+        const sheet = await getSheet();
         await sheet.loadHeaderRow();
         const headers = sheet.headerValues;
         
         const rows = await sheet.getRows();
         
-        if (rows.length === 0) return { headers, tasks: [] };
+        if (rows.length === 0) {
+            cacheData = { headers, tasks: [] };
+            cacheTime = now;
+            return cacheData;
+        }
 
         const tasks = rows.map((row, index) => {
             const taskObj = { _rowIndex: index };
@@ -38,7 +75,11 @@ async function getAllTasks() {
             return taskObj;
         });
         
-        return { headers, tasks };
+        // 2. Guardar en caché
+        cacheData = { headers, tasks };
+        cacheTime = now;
+        
+        return cacheData;
     } catch (error) {
         console.error('Error al obtener todas las tareas:', error);
         throw error;
@@ -48,8 +89,7 @@ async function getAllTasks() {
 // Función que lee los headers actuales y cruza los datos de Gemini,
 // respetando mayúsculas/minúsculas del sheet original para evitar errores.
 async function normalizeData(data) {
-    await doc.loadInfo();
-    const sheet = doc.sheetsByIndex[0];
+    const sheet = await getSheet();
     await sheet.loadHeaderRow();
     const headers = sheet.headerValues;
     
@@ -61,7 +101,6 @@ async function normalizeData(data) {
             normalized[realHeader] = data[key];
         } else {
             // Si la columna no existe aún, la pasamos tal cual.
-            // Más adelante podemos crearla, o depender de que Gemini mande un añadir_columna antes.
             // La capitalizamos para que se vea bien si se añade sola
             normalized[key.charAt(0).toUpperCase() + key.slice(1)] = data[key];
         }
@@ -71,11 +110,9 @@ async function normalizeData(data) {
 
 async function appendRow(data) {
     try {
-        await doc.loadInfo();
-        const sheet = doc.sheetsByIndex[0];
+        const sheet = await getSheet();
         
         // Primero, si hay datos de columnas que NO existen en headerValues, deberíamos agregarlas automáticamente.
-        // Pero como ya tenemos un comando "añadir_columna", no es estrictamente necesario, aunque es buena defensa.
         await sheet.loadHeaderRow();
         const finalData = await normalizeData(data);
         
@@ -85,6 +122,7 @@ async function appendRow(data) {
         }
         
         await sheet.addRow(finalData);
+        invalidateCache(); // Romper caché
     } catch (error) {
         console.error('Error al añadir fila:', error);
         throw error;
@@ -93,8 +131,7 @@ async function appendRow(data) {
 
 async function updateRow(taskId, data) {
     try {
-        await doc.loadInfo();
-        const sheet = doc.sheetsByIndex[0];
+        const sheet = await getSheet();
         const rows = await sheet.getRows();
         
         // Buscar la fila por su columna ID
@@ -106,6 +143,7 @@ async function updateRow(taskId, data) {
                 row.set(key, finalData[key]);
             }
             await row.save();
+            invalidateCache(); // Romper caché
         } else {
             throw new Error(`La tarea con ID ${taskId} no existe.`);
         }
@@ -117,8 +155,7 @@ async function updateRow(taskId, data) {
 
 async function deleteRow(taskId) {
     try {
-        await doc.loadInfo();
-        const sheet = doc.sheetsByIndex[0];
+        const sheet = await getSheet();
         const rows = await sheet.getRows();
         
         // Buscar la fila por su columna ID
@@ -126,6 +163,7 @@ async function deleteRow(taskId) {
         
         if (row) {
             await row.delete();
+            invalidateCache(); // Romper caché
         } else {
             throw new Error(`La tarea con ID ${taskId} no existe.`);
         }
@@ -137,14 +175,14 @@ async function deleteRow(taskId) {
 
 async function addColumn(columnName) {
     try {
-        await doc.loadInfo();
-        const sheet = doc.sheetsByIndex[0];
+        const sheet = await getSheet();
         await sheet.loadHeaderRow();
         
         // Evitamos duplicados
         const exists = sheet.headerValues.some(h => h.toLowerCase() === columnName.toLowerCase());
         if (!exists) {
             await sheet.setHeaderRow([...sheet.headerValues, columnName]);
+            invalidateCache(); // Romper caché
         }
     } catch (error) {
         console.error('Error al añadir columna:', error);
@@ -154,8 +192,7 @@ async function addColumn(columnName) {
 
 async function getNextId() {
     try {
-        await doc.loadInfo();
-        const sheet = doc.sheetsByIndex[0];
+        const sheet = await getSheet();
         await sheet.loadHeaderRow();
         
         // Si no existe columna ID, devolvemos 1
