@@ -34,7 +34,71 @@ client.once('ready', () => {
     console.log(`¡Bot iniciado exitosamente como ${client.user.tag}!`);
 });
 
+const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+
 client.on('interactionCreate', async interaction => {
+    // Manejo de Botones del Panel
+    if (interaction.isButton()) {
+        if (interaction.customId === 'btn_consultar') {
+            const modal = new ModalBuilder()
+                .setCustomId('modal_consultar')
+                .setTitle('Consultar Tareas');
+            const preguntaInput = new TextInputBuilder()
+                .setCustomId('pregunta')
+                .setLabel('¿Qué quieres preguntarle a Gemini?')
+                .setStyle(TextInputStyle.Paragraph)
+                .setRequired(true);
+            const row = new ActionRowBuilder().addComponents(preguntaInput);
+            modal.addComponents(row);
+            await interaction.showModal(modal);
+            return;
+        }
+        if (interaction.customId === 'btn_crear') {
+            const modal = new ModalBuilder()
+                .setCustomId('modal_crear')
+                .setTitle('Crear o Actualizar Tarea');
+            const instruccionInput = new TextInputBuilder()
+                .setCustomId('instruccion')
+                .setLabel('Instrucción para la base de datos')
+                .setPlaceholder('Ej: Crea una columna Prioridad y agrégale Prioridad Alta a Ana')
+                .setStyle(TextInputStyle.Paragraph)
+                .setRequired(true);
+            const row = new ActionRowBuilder().addComponents(instruccionInput);
+            modal.addComponents(row);
+            await interaction.showModal(modal);
+            return;
+        }
+    }
+
+    // Manejo de Envíos de Modales
+    if (interaction.isModalSubmit()) {
+        if (interaction.customId === 'modal_consultar') {
+            const command = interaction.client.commands.get('consultar');
+            // Mapeamos el valor del modal para que simule ser un argumento de Slash Command
+            interaction.options = { getString: () => interaction.fields.getTextInputValue('pregunta') };
+            try {
+                await command.execute(interaction);
+            } catch (error) {
+                console.error(error);
+                await interaction.reply({ content: 'Hubo un error al ejecutar la consulta.', ephemeral: true });
+            }
+            return;
+        }
+        if (interaction.customId === 'modal_crear') {
+            const command = interaction.client.commands.get('crear');
+            // Mapeamos el valor del modal
+            interaction.options = { getString: () => interaction.fields.getTextInputValue('instruccion') };
+            try {
+                await command.execute(interaction);
+            } catch (error) {
+                console.error(error);
+                await interaction.reply({ content: 'Hubo un error al ejecutar la creación.', ephemeral: true });
+            }
+            return;
+        }
+    }
+
+    // Si no es un Slash Command, salir
     if (!interaction.isChatInputCommand()) return;
 
     const command = interaction.client.commands.get(interaction.commandName);
