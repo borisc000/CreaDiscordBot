@@ -128,9 +128,9 @@ async function dailyStandup(client) {
         targetChannel = client.channels.cache.get(process.env.NOTIFICATIONS_CHANNEL_ID);
     } 
     
-    // Si no, buscar el primer canal llamado 'general' o el primero de texto
+    // Si no, buscar el canal 'gestion-crea' o el primero de texto
     if (!targetChannel) {
-        targetChannel = client.channels.cache.find(c => c.isTextBased() && c.name === 'general');
+        targetChannel = client.channels.cache.find(c => c.isTextBased() && c.name === 'gestion-crea');
     }
     if (!targetChannel) {
         targetChannel = client.channels.cache.find(c => c.isTextBased() && c.permissionsFor(client.user).has('SendMessages'));
