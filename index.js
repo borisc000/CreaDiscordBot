@@ -217,7 +217,7 @@ server.listen(PORT, () => {
     console.log(`Servidor de salud escuchando en el puerto ${PORT}`);
 });
 
-// Auto-ping: el bot se llama a sí mismo cada 14 minutos para que Render no lo duerma
+// Auto-ping: el bot se llama a sí mismo cada 10 minutos para que Render no lo duerma
 if (process.env.RENDER_EXTERNAL_URL) {
     setInterval(() => {
         const url = process.env.RENDER_EXTERNAL_URL;
@@ -227,8 +227,8 @@ if (process.env.RENDER_EXTERNAL_URL) {
         }).on('error', (err) => {
             console.error('[Keep-Alive] Error en ping:', err.message);
         });
-    }, 14 * 60 * 1000); // Cada 14 minutos
-    console.log('✅ Auto-ping activado cada 14 minutos');
+    }, 10 * 60 * 1000); // Cada 10 minutos
+    console.log('✅ Auto-ping activado cada 10 minutos');
 } else {
     console.log('⚠️ RENDER_EXTERNAL_URL no configurada. Auto-ping desactivado (modo local).');
 }
