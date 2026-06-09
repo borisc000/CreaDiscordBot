@@ -207,6 +207,7 @@ client.on('messageCreate', async message => {
 
 // Mini servidor HTTP para que Render lo reconozca como Web Service (tier gratuito)
 const http = require('http');
+const https = require('https');
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('Bot de Discord activo');
@@ -215,3 +216,19 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`Servidor de salud escuchando en el puerto ${PORT}`);
 });
+
+// Auto-ping: el bot se llama a sí mismo cada 14 minutos para que Render no lo duerma
+if (process.env.RENDER_EXTERNAL_URL) {
+    setInterval(() => {
+        const url = process.env.RENDER_EXTERNAL_URL;
+        const client = url.startsWith('https') ? https : http;
+        client.get(url, (res) => {
+            console.log(`[Keep-Alive] Ping exitoso (${res.statusCode})`);
+        }).on('error', (err) => {
+            console.error('[Keep-Alive] Error en ping:', err.message);
+        });
+    }, 14 * 60 * 1000); // Cada 14 minutos
+    console.log('✅ Auto-ping activado cada 14 minutos');
+} else {
+    console.log('⚠️ RENDER_EXTERNAL_URL no configurada. Auto-ping desactivado (modo local).');
+}
