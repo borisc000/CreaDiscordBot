@@ -128,8 +128,9 @@ client.on('interactionCreate', async interaction => {
 client.login(process.env.DISCORD_TOKEN);
 
 // ===== Respuesta a menciones (@GestorBot) con MEMORIA =====
-const { askKimi } = require('./services/aiService');
+const { askKimi, detectIntent, processActionPrompt } = require('./services/aiService');
 const { getAllTasks } = require('./services/sheetsService');
+const { executeSheetActions } = require('./services/taskManager');
 const { EmbedBuilder } = require('discord.js');
 const memory = require('./services/memoryService');
 const { getNameById } = require('./utils/teamMapping');
@@ -175,7 +176,31 @@ client.on('messageCreate', async message => {
         const history = memory.getHistory(message.channelId);
         
         const sheetData = await getAllTasks();
-        const textoRespuesta = await askKimi(pregunta, sheetData, history, currentUser);
+        
+        // 1. Detectar intención
+        const intent = await detectIntent(pregunta);
+        let textoRespuesta = '';
+
+        if (intent === 'ACCION') {
+            console.log('[GestorBot] Intención detectada: ACCION. Procesando JSON...');
+            const acciones = await processActionPrompt(pregunta, sheetData, currentUser);
+            
+            if (!acciones || acciones.length === 0) {
+                textoRespuesta = "No entendí muy bien qué acción realizar en la base de datos. ¿Podrías repetirlo más claro?";
+            } else {
+                // Ejecutar cambios
+                const resultadosAcciones = await executeSheetActions(acciones, client, currentUser);
+                
+                // Pedirle a Kimi que genere una respuesta conversacional basada en los resultados
+                const promptConfirmacion = `El usuario pidió: "${pregunta}".\nYa se ejecutó exitosamente en la base de datos con estos resultados:\n${resultadosAcciones.join('\n')}\nRespóndele al usuario de manera amigable confirmando que ya hiciste lo que pidió y resumiendo brevemente los cambios. No incluyas JSON.`;
+                
+                textoRespuesta = await askKimi(promptConfirmacion, sheetData, history, currentUser);
+            }
+        } else {
+            // Es solo una consulta o charla normal
+            console.log('[GestorBot] Intención detectada: CONSULTA. Respondiendo directo...');
+            textoRespuesta = await askKimi(pregunta, sheetData, history, currentUser);
+        }
         
         // Guardar en memoria: inyectando el nombre del usuario
         memory.addMessage(message.channelId, 'user', `[${currentUser}]: ${pregunta}`);

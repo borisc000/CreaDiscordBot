@@ -112,4 +112,27 @@ Ejemplo 2 (el usuario dice 'Borra la tarea con ID 5 y agrega una de limpiar'):
     }
 }
 
-module.exports = { askKimi, processActionPrompt };
+async function detectIntent(instruccion) {
+    const systemPrompt = `Lee el mensaje del usuario. Tu único trabajo es clasificarlo en una de dos categorías.
+Si el usuario está pidiendo modificar, crear, asignar, borrar, actualizar o cambiar tareas en la base de datos de alguna manera, responde ÚNICAMENTE con la palabra: ACCION
+Si el usuario solo está saludando, preguntando, charlando o pidiendo resúmenes y no está pidiendo realizar cambios en los datos, responde ÚNICAMENTE con la palabra: CONSULTA
+No agregues puntuación, explicaciones, ni texto adicional. Solo la palabra exacta.`;
+
+    try {
+        const completion = await geminiClient.chat.completions.create({
+            model: "gemini-3.5-flash",
+            messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: instruccion }
+            ],
+            temperature: 0.0, // Cero alucinación
+        });
+        const text = completion.choices[0].message.content.trim().toUpperCase();
+        return text.includes("ACCION") ? "ACCION" : "CONSULTA";
+    } catch (error) {
+        console.error('Error en detectIntent:', error);
+        return "CONSULTA"; // Fallback seguro
+    }
+}
+
+module.exports = { askKimi, processActionPrompt, detectIntent };
