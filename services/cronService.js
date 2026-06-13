@@ -33,9 +33,23 @@ function initCrons(client) {
     console.log('✅ Cron Jobs programados (10:00 AM Acosador / 22:00 PM Standup)');
 }
 
+function isTaskPending(tarea) {
+    const statusKey = Object.keys(tarea).find(k => k.toLowerCase() === 'estado' || k.toLowerCase() === 'status');
+    
+    if (!statusKey || !tarea[statusKey]) {
+        return true; // Si no tiene estado, está pendiente
+    }
+    
+    const estado = tarea[statusKey].toString().toLowerCase().trim();
+    const terminadas = ['completad', 'completa', 'listo', 'lista', 'hecho', 'hecha', 'terminad', 'cancelad', 'ok'];
+    
+    const isTerminada = terminadas.some(palabra => estado.includes(palabra));
+    return !isTerminada;
+}
+
 async function checkOverdueTasks(client) {
     const sheetData = await getAllTasks();
-    const tareasPendientes = sheetData.tasks.filter(t => t.Estado && t.Estado.toLowerCase() !== 'completado');
+    const tareasPendientes = sheetData.tasks.filter(t => isTaskPending(t));
 
     const hoy = new Date();
     // Normalizamos hoy a la medianoche para comparar solo fechas sin horas
@@ -142,7 +156,7 @@ async function dailyStandup(client) {
     }
 
     const sheetData = await getAllTasks();
-    const tareasPendientes = sheetData.tasks.filter(t => t.Estado && t.Estado.toLowerCase() !== 'completado');
+    const tareasPendientes = sheetData.tasks.filter(t => isTaskPending(t));
 
     if (tareasPendientes.length === 0) {
         const embed = new EmbedBuilder()
