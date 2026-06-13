@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, Partials } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -9,7 +9,9 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-    ] 
+        GatewayIntentBits.DirectMessages,
+    ],
+    partials: [Partials.Channel, Partials.Message]
 });
 
 client.commands = new Collection();
@@ -139,10 +141,13 @@ client.on('messageCreate', async message => {
     // Ignorar mensajes de bots (incluyéndose a sí mismo)
     if (message.author.bot) return;
     
-    // Solo responder si mencionan al bot
-    if (!message.mentions.has(client.user)) return;
+    const isDM = !message.guild;
+    const isMentioned = message.mentions.has(client.user);
     
-    // Extraer el texto limpio (quitar la mención del bot)
+    // Solo responder si es un Mensaje Directo o si mencionan al bot en un grupo
+    if (!isDM && !isMentioned) return;
+    
+    // Extraer el texto limpio (quitar la mención del bot si la hay)
     const pregunta = message.content
         .replace(/<@!?\d+>/g, '')  // Quitar todas las menciones
         .trim();
